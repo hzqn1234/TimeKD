@@ -4,8 +4,12 @@ import time
 import h5py
 import argparse
 from torch.utils.data import DataLoader
-from data_provider.data_loader_save import Dataset_ETT_hour, Dataset_ETT_minute, Dataset_Custom
+from data_provider.data_loader_save import Dataset_ETT_minute
+
+Dataset_Custom = None
+
 from clm import GenPromptEmb
+from tqdm import tqdm
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -24,12 +28,13 @@ def parse_args():
 
 def get_dataset(data_path, flag, input_len, output_len):
     datasets = {
-        'ETTh1': Dataset_ETT_hour,
-        'ETTh2': Dataset_ETT_hour,
+        # 'ETTh1': Dataset_ETT_hour,
+        # 'ETTh2': Dataset_ETT_hour,
         'ETTm1': Dataset_ETT_minute,
         'ETTm2': Dataset_ETT_minute,
     }
-    dataset_class = datasets.get(data_path, Dataset_Custom)
+    # dataset_class = datasets.get(data_path, Dataset_Custom)
+    dataset_class = datasets.get(data_path)
     return dataset_class(flag=flag, size=[input_len, 0, output_len], data_path=data_path)
 
 def save_embeddings(args):
@@ -68,7 +73,7 @@ def save_embeddings(args):
     os.makedirs(emb_time_path, exist_ok=True)
     # max_token_counts = []
 
-    for i, (x, y, x_mark, y_mark) in enumerate(data_loader):
+    for i, (x, y, x_mark, y_mark) in enumerate(tqdm(data_loader)):
         embeddings = gen_prompt_emb.generate_embeddings(x.to(device), y.to(device), x_mark.to(device), y_mark.to(device))
         # max_token_counts.append(max_token_count)
 

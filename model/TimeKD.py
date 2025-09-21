@@ -8,7 +8,7 @@ from layers.SelfAttention_Family import FullAttention, AttentionLayer
 class Dual(nn.Module):
     def __init__(
         self,
-        device="cuda:7",
+        device="cuda",
         channel=768,
         num_nodes=7,
         seq_len=96,
@@ -77,7 +77,20 @@ class Dual(nn.Module):
 
     def forward(self, x, prompt_emb):
         if prompt_emb is not None:
+            # # ADD THIS LINE FOR DEBUGGING
+            # print("Shape of prompt_emb before squeeze:", prompt_emb.shape)
+
             prompt_emb = prompt_emb.float().squeeze() # B, N, E
+
+            # # Reshape (B1, B2, N, E) to (B1 * B2, N, E)
+            # B = prompt_emb.shape[0]
+            # E = prompt_emb.shape[-1]  # Get the last dimension (embedding size, e.g., 768)
+            
+            # # Reshape to 3D. The -1 will automatically calculate the new sequence length (e.g., 28)
+            # prompt_emb = prompt_emb.view(B, -1, E)
+
+            # # ADD THIS LINE FOR DEBUGGING
+            # print("Shape of prompt_emb before TS input:", prompt_emb.shape)
 
             # TS Input
             ts_data = x.float() # B L N
@@ -99,6 +112,10 @@ class Dual(nn.Module):
             # Prompt Encoder
             # print(prompt_emb.shape)
             prompt_emb = self.token_to_feature(prompt_emb) # B N E -> B N C
+
+            # # ADD THIS LINE FOR DEBUGGING
+            # print("Shape of prompt_emb before encoder:", prompt_emb.shape)
+
             prompt_enc, prompt_att = self.prompt_encoder(prompt_emb)
             prompt_att_last = prompt_att[-1]
             prompt_att_avg = prompt_att_last.mean(dim=0)

@@ -16,7 +16,7 @@ class BaseModelOutputWithPastAndCrossAttentions:
     cross_attentions: Optional[Tuple[torch.FloatTensor, ...]] = None
 
 class MSK(nn.Module):
-    def __init__(self, device="cuda:0", l_layer=6):
+    def __init__(self, device="cuda", l_layer=6):
         super(MSK, self).__init__()
         self.device = device
         self.gpt2 = GPT2Model.from_pretrained("gpt2", attn_implementation="eager",
@@ -131,7 +131,7 @@ class GenPromptEmb(nn.Module):
         data_path='ETTh1',
         model_name="gpt2",
         num_nodes=7,
-        device='cuda:6',
+        device='cuda',
         input_len=96,
         output_len=96,
         d_model=768,

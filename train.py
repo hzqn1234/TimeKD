@@ -6,11 +6,14 @@ import time
 import os
 import random
 from torch.utils.data import DataLoader
-from data_provider.data_loader_emb import Dataset_ETT_hour, Dataset_ETT_minute, Dataset_Custom
+from data_provider.data_loader_emb import Dataset_ETT_minute
 from model.TimeKD import Dual
 from utils.kd_loss import KDLoss
 from utils.metrics import MSE, MAE, metric
 import faulthandler
+from tqdm import tqdm
+import pandas as pd
+
 faulthandler.enable()
 torch.cuda.empty_cache()
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:150"
@@ -18,7 +21,7 @@ os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:150"
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--device", type=str, default="cuda:6", help="")
+    parser.add_argument("--device", type=str, default="cuda", help="")
     parser.add_argument("--data_path", type=str, default="ETTh1", help="data path")
     parser.add_argument("--channel", type=int, default=512, help="number of features")
     parser.add_argument("--num_nodes", type=int, default=7, help="number of nodes")
@@ -42,7 +45,7 @@ def parse_args():
     parser.add_argument(
         "--es_patience",
         type=int,
-        default=50,
+        default=30,
         help="quit if no improvement after this many iterations",
     )
     parser.add_argument(
@@ -98,7 +101,7 @@ class trainer:
         self.att_w = 0.01
         self.criterion = KDLoss(self.feature_loss, self.fcst_loss, self.recon_loss, self.att_loss,  self.feature_w,  self.fcst_w,  self.recon_w,  self.att_w)
 
-        print("The number of trainable parameters: {}".format(self.model.count_trainable_params()))
+        # print("The number of trainable parameters: {}".format(self.model.count_trainable_params()))
         print("The number of parameters: {}".format(self.model.param_num()))
         print(self.model)
 
@@ -127,12 +130,13 @@ class trainer:
 
 def load_data(args):
     data_map = {
-        'ETTh1': Dataset_ETT_hour,
-        'ETTh2': Dataset_ETT_hour,
+        # 'ETTh1': Dataset_ETT_hour,
+        # 'ETTh2': Dataset_ETT_hour,
         'ETTm1': Dataset_ETT_minute,
         'ETTm2': Dataset_ETT_minute
         }
-    data_class = data_map.get(args.data_path, Dataset_Custom)
+    data_class = data_map.get(args.data_path)
+    # data_class = data_map.get(args.data_path, Dataset_Custom)
     train_set = data_class(flag='train', scale=True, size=[args.seq_len, 0, args.pred_len], data_path=args.data_path)
     val_set = data_class(flag='val', scale=True, size=[args.seq_len, 0, args.pred_len], data_path=args.data_path)
     test_set = data_class(flag='test', scale=True, size=[args.seq_len, 0, args.pred_len], data_path=args.data_path)
@@ -206,7 +210,7 @@ def main():
         train_mse = []
         train_mae = []
         
-        for iter, (x, y, emb) in enumerate(train_loader):
+        for iter, (x, y, emb) in enumerate(tqdm(train_loader)):
             trainx = torch.Tensor(x).to(device).float()
             trainy = torch.Tensor(y).to(device).float()
             emb = torch.Tensor(emb).to(device).float()
@@ -320,11 +324,12 @@ def main():
 
         else:
             epochs_since_best_mse += 1
-            print("No update")
+            print(f"No update. epochs_since_best_mse: {epochs_since_best_mse}")
 
         engine.scheduler.step()
 
-        if epochs_since_best_mse >= args.es_patience and i >= args.epochs//2: # early stop
+        # if epochs_since_best_mse >= args.es_patience and i >= args.epochs//2: # early stop
+        if epochs_since_best_mse >= args.es_patience and i >= min(args.epochs//2, 10): # early stop
             break
 
     # Output consumption
@@ -371,6 +376,20 @@ def main():
     log = "On average horizons, Test MSE: {:.4f}, Test MAE: {:.4f}"
     print(log.format(np.mean(amse), np.mean(amae)))
     print("Average Testing Time: {:.4f} secs".format(np.mean(test_time)))
+
+    ## output test result to log file
+    test_result_df = pd.DataFrame()
+    test_result_df['lr'] = args.lrate
+    test_result_df['test mse'] = np.mean(amse)
+    test_result_df['test mae'] = np.mean(amae)
+
+    test_result_df['best epoch'] = bestid
+    test_result_df['best valid loss'] = str(round(his_loss[bestid - 1], 4))
+    if not os.path.exists('./experiment_log.csv'):
+        test_result_df.to_csv('./experiment_log.csv',index=False)
+    else:
+        test_result_df.to_csv('./experiment_log.csv',index=False,header=None,mode='a') 
+
 
 if __name__ == "__main__":
     t1 = time.time()
