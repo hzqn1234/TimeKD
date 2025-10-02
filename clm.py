@@ -23,8 +23,12 @@ class MSK(nn.Module):
                                               output_attentions=True, output_hidden_states=True)  #attn_implementation="sdpa" OR "eager"
         
         self.gpt2.h = self.gpt2.h[:l_layer]
+
         for param in self.gpt2.h.parameters():
             param.requires_grad = False
+
+        # self.gpt2 = nn.DataParallel(self.gpt2).cuda()
+
 
     def custom_forward(self,
                     input_ids: Optional[torch.LongTensor] = None,

@@ -53,8 +53,7 @@ for seq_len in "${seq_lens[@]}"; do
                 --e_layer $e_layer\
                 --model_name $model_name \
                 --num_workers 10 \
-                --d_llm $d_llm 
-                # > $log_file &
+                --d_llm $d_llm 2>&1 | tee logfile_train.txt
             done
           done
         done

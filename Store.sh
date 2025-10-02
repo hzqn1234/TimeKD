@@ -30,7 +30,7 @@ for data_path in "${data_paths[@]}"; do
     for output_len in "${output_len_values[@]}"; do
       # log_file="${data_path}_${output_len}_${divide}.log"
       # nohup python store_emb.py \
-      CUDA_VISIBLE_DEVICES=1 python store_emb.py \
+      CUDA_VISIBLE_DEVICES=0,1 python store_emb.py \
         --data_path $data_path \
         --divide $divide \
         --device $device \
@@ -39,8 +39,8 @@ for data_path in "${data_paths[@]}"; do
         --output_len $output_len \
         --model_name $model_name \
         --d_model $d_model \
-        --batch_size 1 \
-        --l_layer $l_layer
+        --batch_size 2 \
+        --l_layer $l_layer 2>&1 | tee logfile_store_2.txt
     done
   done
 done

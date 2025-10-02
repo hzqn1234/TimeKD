@@ -1,0 +1,23 @@
+Length of train_hd_set: 34441
+Length of test_hd_set: 11497
+Length of val_hd_set: 11497
+Namespace(device='cuda', data_path='ETTm1', num_nodes=7, input_len=96, output_len=24, batch_size=2, d_model=768, l_layers=12, model_name='gpt2', divide='val', num_workers=10)
+  0%|          | 0/5749 [00:00<?, ?it/s]  0%|          | 0/5749 [00:01<?, ?it/s]
+Traceback (most recent call last):
+  File "/home/zongqi/004_TimeKD/TimeKD/store_emb.py", line 110, in <module>
+    save_embeddings(args)
+  File "/home/zongqi/004_TimeKD/TimeKD/store_emb.py", line 79, in save_embeddings
+    embeddings = gen_prompt_emb.generate_embeddings(x.to(device), y.to(device), x_mark.to(device), y_mark.to(device))
+  File "/home/zongqi/004_TimeKD/TimeKD/clm.py", line 307, in generate_embeddings
+    GT_HD_emb, HD_emb = self.forward(GT_HD_token.squeeze(0), HD_token.squeeze(0), gt_token_types, hd_token_types)
+  File "/home/zongqi/004_TimeKD/TimeKD/clm.py", line 280, in forward
+    GT_HD_emb = self.gpt2(GT_HD_token, calibrated_mask=mask_GT)
+  File "/home/zongqi/anaconda3/envs/TimeKD_Env/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1518, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/zongqi/anaconda3/envs/TimeKD_Env/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1527, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/zongqi/004_TimeKD/TimeKD/clm.py", line 122, in forward
+    num_heads =  self.gpt2.config.n_head
+  File "/home/zongqi/anaconda3/envs/TimeKD_Env/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1695, in __getattr__
+    raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
+AttributeError: 'DataParallel' object has no attribute 'config'

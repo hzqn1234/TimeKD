@@ -379,12 +379,12 @@ def main():
 
     ## output test result to log file
     test_result_df = pd.DataFrame()
-    test_result_df['lr'] = args.lrate
-    test_result_df['test mse'] = np.mean(amse)
-    test_result_df['test mae'] = np.mean(amae)
+    test_result_df['lr'] = [args.lrate]
+    test_result_df['test mse'] = [np.mean(amse)]
+    test_result_df['test mae'] = [np.mean(amae)]
 
-    test_result_df['best epoch'] = bestid
-    test_result_df['best valid loss'] = str(round(his_loss[bestid - 1], 4))
+    test_result_df['best epoch'] = [bestid]
+    test_result_df['best valid loss'] = [str(round(his_loss[bestid - 1], 4))]
     if not os.path.exists('./experiment_log.csv'):
         test_result_df.to_csv('./experiment_log.csv',index=False)
     else:

@@ -13,7 +13,7 @@ from tqdm import tqdm
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--device", type=str, default="cuda:7")
+    parser.add_argument("--device", type=str, default="cuda")
     parser.add_argument("--data_path", type=str, default="ETTh1")
     parser.add_argument("--num_nodes", type=int, default=7)
     parser.add_argument("--input_len", type=int, default=96)
@@ -66,20 +66,33 @@ def save_embeddings(args):
 
     print(args)
 
-    save_path = f"{args.data_path}/{args.output_len}/{args.divide}/"
+    # save_path = f"{args.data_path}/{args.output_len}/{args.divide}_stack/"
+    save_path = f"{args.data_path}/{args.output_len}/{args.divide}_batch/"
     os.makedirs(save_path, exist_ok=True)
 
     emb_time_path = f"./Results/emb_time/"
     os.makedirs(emb_time_path, exist_ok=True)
     # max_token_counts = []
 
+    embeddings_list = []
     for i, (x, y, x_mark, y_mark) in enumerate(tqdm(data_loader)):
         embeddings = gen_prompt_emb.generate_embeddings(x.to(device), y.to(device), x_mark.to(device), y_mark.to(device))
         # max_token_counts.append(max_token_count)
 
-        file_path = f"{save_path}{i}.h5"
-        with h5py.File(file_path, 'w') as hf:
-            hf.create_dataset('embeddings', data=embeddings.detach().cpu().numpy())
+        if embeddings.dim() == 2:
+            embeddings = embeddings.unsqueeze(0)
+
+        embeddings_list.append(embeddings.detach())
+
+        if i >=5:
+            break
+
+    # stacked_embeddings = torch.stack(embeddings_list, dim=0)
+    batch_embeddings = torch.cat(embeddings_list, dim=0)
+    file_path = f"{save_path}batch.h5"
+    with h5py.File(file_path, 'w') as hf:
+        # hf.create_dataset('stacked_embeddings', data=stacked_embeddings.detach().cpu().numpy())
+        hf.create_dataset('stacked_embeddings', data=batch_embeddings.detach().cpu().numpy())
 
         # Save and visualize the first sample
         # if i >= 0:
