@@ -1,4 +1,4 @@
-name: PyTorch
+name: TimeKD_Env
 channels:
   - dglteam
   - defaults
