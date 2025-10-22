@@ -84,8 +84,8 @@ def save_embeddings(args):
 
         embeddings_list.append(embeddings.detach())
 
-        if i >=5:
-            break
+        # if i >=10:
+        #     break
 
     # stacked_embeddings = torch.stack(embeddings_list, dim=0)
     batch_embeddings = torch.cat(embeddings_list, dim=0)
