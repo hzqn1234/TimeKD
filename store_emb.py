@@ -79,6 +79,12 @@ def save_embeddings(args):
         embeddings = gen_prompt_emb.generate_embeddings(x.to(device), y.to(device), x_mark.to(device), y_mark.to(device))
         # max_token_counts.append(max_token_count)
 
+        print(f'x_shape: {x.shape}')
+        print(f'y_shape: {y.shape}')
+        print(f'embeddings_shape: {embeddings.shape}')
+
+        exit()
+
         if embeddings.dim() == 2:
             embeddings = embeddings.unsqueeze(0)
 
