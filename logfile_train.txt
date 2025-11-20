@@ -1,0 +1,91 @@
+/export/home2/zongqi001/001_env/001_miniconda/001_mininconda/envs/amex__TimeKD/lib/python3.10/site-packages/scipy/__init__.py:146: UserWarning: A NumPy version >=1.17.3 and <1.25.0 is required for this version of SciPy (detected version 1.26.4
+  warnings.warn(f"A NumPy version >={np_minversion} and <{np_maxversion}"
+<frozen importlib._bootstrap>:241: RuntimeWarning: scipy._lib.messagestream.MessageStream size changed, may indicate binary incompatibility. Expected 56 from C header, got 64 from PyObject
+Training...
+Namespace(device='cuda', data_path='Amex', channel=512, num_nodes=7, seq_len=13, pred_len=1, batch_size=32, lrate=0.0001, dropout_n=0.2, d_llm=768, e_layer=1, head=8, model_name='gpt2', weight_decay=0.001, feature_w=0.01, fcst_w=1, recon_w=0.5, att_w=0.01, num_workers=10, epochs=100, seed=42, es_patience=30, save='./logs/2025-11-21-05:17:31-')
+Adjusting learning rate of group 0 to 1.0000e-04.
+The number of parameters: 8807938
+Dual(
+  (normalize_layers): Normalize()
+  (length_to_feature): Linear(in_features=13, out_features=512, bias=True)
+  (token_to_feature): Linear(in_features=768, out_features=512, bias=True)
+  (ts_encoder): Encoder(
+    (attn_layers): ModuleList(
+      (0): EncoderLayer(
+        (attention): AttentionLayer(
+          (inner_attention): FullAttention(
+            (dropout): Dropout(p=0.2, inplace=False)
+          )
+          (query_projection): Linear(in_features=512, out_features=512, bias=True)
+          (key_projection): Linear(in_features=512, out_features=512, bias=True)
+          (value_projection): Linear(in_features=512, out_features=512, bias=True)
+          (out_projection): Linear(in_features=512, out_features=512, bias=True)
+        )
+        (conv1): Conv1d(512, 3072, kernel_size=(1,), stride=(1,))
+        (conv2): Conv1d(3072, 512, kernel_size=(1,), stride=(1,))
+        (norm1): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+        (norm2): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+        (dropout): Dropout(p=0.2, inplace=False)
+      )
+    )
+    (norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+  )
+  (prompt_encoder): Encoder(
+    (attn_layers): ModuleList(
+      (0): EncoderLayer(
+        (attention): AttentionLayer(
+          (inner_attention): FullAttention(
+            (dropout): Dropout(p=0.2, inplace=False)
+          )
+          (query_projection): Linear(in_features=512, out_features=512, bias=True)
+          (key_projection): Linear(in_features=512, out_features=512, bias=True)
+          (value_projection): Linear(in_features=512, out_features=512, bias=True)
+          (out_projection): Linear(in_features=512, out_features=512, bias=True)
+        )
+        (conv1): Conv1d(512, 3072, kernel_size=(1,), stride=(1,))
+        (conv2): Conv1d(3072, 512, kernel_size=(1,), stride=(1,))
+        (norm1): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+        (norm2): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+        (dropout): Dropout(p=0.2, inplace=False)
+      )
+    )
+    (norm): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+  )
+  (ts_proj): Linear(in_features=512, out_features=1, bias=True)
+  (prompt_proj): Linear(in_features=512, out_features=1, bias=True)
+)
+Start training...
+  0%|          | 0/218 [00:00<?, ?it/s]  0%|          | 0/218 [00:00<?, ?it/s]
+torch.Size([220, 768])
+Traceback (most recent call last):
+  File "/export/home2/zongqi001/004_TimeKD/TimeKD/amex_train.py", line 446, in <module>
+    main_train()
+  File "/export/home2/zongqi001/004_TimeKD/TimeKD/amex_train.py", line 298, in main_train
+    metrics = engine.train(trainx, trainy, emb)
+  File "/export/home2/zongqi001/004_TimeKD/TimeKD/amex_train.py", line 185, in train
+    ts_enc, prompt_enc, ts_out, prompt_out, ts_att, prompt_att = self.model(x, emb)
+  File "/export/home2/zongqi001/001_env/001_miniconda/001_mininconda/envs/amex__TimeKD/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1518, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/export/home2/zongqi001/001_env/001_miniconda/001_mininconda/envs/amex__TimeKD/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1527, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/export/home2/zongqi001/004_TimeKD/TimeKD/model/TimeKD.py", line 119, in forward
+    prompt_enc, prompt_att = self.prompt_encoder(prompt_emb)
+  File "/export/home2/zongqi001/001_env/001_miniconda/001_mininconda/envs/amex__TimeKD/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1518, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/export/home2/zongqi001/001_env/001_miniconda/001_mininconda/envs/amex__TimeKD/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1527, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/export/home2/zongqi001/004_TimeKD/TimeKD/layers/Transformer_EncDec.py", line 70, in forward
+    x, attn = attn_layer(x, attn_mask=attn_mask)
+  File "/export/home2/zongqi001/001_env/001_miniconda/001_mininconda/envs/amex__TimeKD/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1518, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/export/home2/zongqi001/001_env/001_miniconda/001_mininconda/envs/amex__TimeKD/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1527, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/export/home2/zongqi001/004_TimeKD/TimeKD/layers/Transformer_EncDec.py", line 38, in forward
+    new_x, attn = self.attention(
+  File "/export/home2/zongqi001/001_env/001_miniconda/001_mininconda/envs/amex__TimeKD/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1518, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/export/home2/zongqi001/001_env/001_miniconda/001_mininconda/envs/amex__TimeKD/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1527, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/export/home2/zongqi001/004_TimeKD/TimeKD/layers/SelfAttention_Family.py", line 150, in forward
+    B, L, _ = queries.shape
+ValueError: not enough values to unpack (expected 3, got 2)

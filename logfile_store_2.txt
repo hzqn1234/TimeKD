@@ -1,7 +1,0 @@
-save_train_embeddings
-                                         customer_ID  ... oneHot_D_68_600.0
-0  000cc98607442c5074d368870a7fa3cb1634147af647f1...  ...               0.0
-1  000cc98607442c5074d368870a7fa3cb1634147af647f1...  ...               0.0
-
-[2 rows x 225 columns]
-Total time spent on save_train_embeddings: 0.0025 minutes

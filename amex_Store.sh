@@ -7,10 +7,12 @@
 #SBATCH --gpus-per-node=1
 
 #SBATCH -n 1
-#SBATCH -c 2
+#SBATCH -c 4
 #SBATCH -w node19
 
-python amex_store_emb.py 2>&1 | tee logfile_store_2.txt
+CUDA_VISIBLE_DEVICES=0 \
+python amex_store_emb.py --num_nodes 220 2>&1
+
 
 # export PYTHONPATH=/path/to/project_root:$PYTHONPATH
 # export CUDA_LAUNCH_BLOCKING=1
