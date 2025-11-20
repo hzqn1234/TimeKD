@@ -110,7 +110,7 @@ class Dual(nn.Module):
             ts_att_avg = ts_att_last.mean(dim=0)
 
             # Prompt Encoder
-            # print(prompt_emb.shape)
+            print(prompt_emb.shape)
             prompt_emb = self.token_to_feature(prompt_emb) # B N E -> B N C
 
             # # ADD THIS LINE FOR DEBUGGING
