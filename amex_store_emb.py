@@ -101,7 +101,7 @@ def parse_args():
 def save_train_embeddings(args, train_test = 'train'):
     print(f'save_train_embeddings')
 
-    input_path = '../../000_data/amex/13month_0.1pct'
+    input_path = '../../000_data/amex/13month_10pct'
     series     = pd.read_feather(f'{input_path}/df_nn_series_{train_test}.feather')
     series_idx = pd.read_feather(f'{input_path}/df_nn_series_idx_{train_test}.feather').values
     
@@ -127,7 +127,7 @@ def save_train_embeddings(args, train_test = 'train'):
         l_layer=args.l_layers,
     ).to(args.device)
 
-    emb_path = f"amex_emb/{train_test}/"
+    emb_path = f"amex_emb/10pct/{train_test}/"
     os.makedirs(emb_path, exist_ok=True)
 
     # embeddings_list = []

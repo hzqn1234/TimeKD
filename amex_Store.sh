@@ -8,10 +8,10 @@
 
 #SBATCH -n 1
 #SBATCH -c 4
-#SBATCH -w node19
+#SBATCH -w node22
 
 CUDA_VISIBLE_DEVICES=0 \
-python amex_store_emb.py --num_nodes 220 2>&1
+python amex_store_emb.py --num_nodes 223 2>&1
 
 
 # export PYTHONPATH=/path/to/project_root:$PYTHONPATH

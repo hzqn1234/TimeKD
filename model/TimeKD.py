@@ -69,8 +69,20 @@ class Dual(nn.Module):
 
         # Projection
         self.ts_proj = nn.Linear(self.channel, self.pred_len, bias=True).to(self.device)
-        self.prompt_proj = nn.Linear(self.channel, self.pred_len, bias=True).to(self.device)
+        self.ts_proj2 = nn.Sequential(
+                        # nn.LayerNorm(self.num_nodes).to(self.device),
+                        nn.LeakyReLU().to(self.device),
+                        nn.Linear(self.num_nodes, 1, bias=True).to(self.device),
+                        nn.Sigmoid()
+        )
 
+        self.prompt_proj = nn.Linear(self.channel, self.pred_len, bias=True).to(self.device)
+        self.prompt_proj2 = nn.Sequential(
+                        # nn.LayerNorm(self.num_nodes).to(self.device),
+                        nn.LeakyReLU().to(self.device),
+                        nn.Linear(self.num_nodes, 1, bias=True).to(self.device),
+                        nn.Sigmoid()
+        )
 
     def param_num(self):
         return sum([param.nelement() for param in self.parameters()])
@@ -80,7 +92,8 @@ class Dual(nn.Module):
             # # ADD THIS LINE FOR DEBUGGING
             # print("Shape of prompt_emb before squeeze:", prompt_emb.shape)
 
-            prompt_emb = prompt_emb.float().squeeze() # B, N, E
+            # prompt_emb = prompt_emb.float().squeeze() # B, N, E
+            prompt_emb = prompt_emb.float() # B, N, E
 
             # # Reshape (B1, B2, N, E) to (B1 * B2, N, E)
             # B = prompt_emb.shape[0]
@@ -97,15 +110,15 @@ class Dual(nn.Module):
             
             # TS Norm
             ts_norm = self.normalize_layers(ts_data, 'norm')
-            ts_norm = ts_norm.permute(0,2,1)
+            ts_norm = ts_norm.permute(0,2,1) # B N L
             # _, _, N = ts_norm.shape
 
             # TS Emb
-            ts_emb = self.length_to_feature(ts_norm) # B N 
+            ts_emb = self.length_to_feature(ts_norm) # B N L -> B N C
             # ts_emb = self.enc_embedding(ts_data, x_mark)
 
             # TS Encoder
-            ts_enc, ts_att = self.ts_encoder(ts_emb)
+            ts_enc, ts_att = self.ts_encoder(ts_emb) # B N C
             ts_att_last = ts_att[-1]
             ts_att_avg = ts_att_last.mean(dim=0)
 
@@ -121,13 +134,14 @@ class Dual(nn.Module):
             prompt_att_avg = prompt_att_last.mean(dim=0)
 
             #  TS Proj
-            ts_out = self.ts_proj(ts_enc)
-            ts_out = ts_out.permute(0,2,1)
-            ts_out = self.normalize_layers(ts_out, 'denorm')
+            ts_out = self.ts_proj(ts_enc) # B N 1
+            ts_out = ts_out.permute(0,2,1) # B 1 N
+            ts_out = self.ts_proj2(ts_out).squeeze() # B 1 1
 
             #  Prompt Proj
-            prompt_out = self.prompt_proj(prompt_enc)
-            prompt_out = prompt_out.permute(0,2,1)
+            prompt_out = self.prompt_proj(prompt_enc) # B N 1
+            prompt_out = prompt_out.permute(0,2,1) # B 1 N
+            prompt_out = self.prompt_proj2(prompt_out).squeeze() # B 1 1
         
         else:
             # TS Input
@@ -139,17 +153,17 @@ class Dual(nn.Module):
             
             # TS Norm
             ts_norm = self.normalize_layers(ts_data, 'norm')
-            ts_norm = ts_norm.permute(0,2,1)
+            ts_norm = ts_norm.permute(0,2,1) # B N L
            
             # TS Emb
             ts_emb = self.length_to_feature(ts_norm) # B N C
 
             # TS Encoder
-            ts_enc,_ = self.ts_encoder(ts_emb)
+            ts_enc,_ = self.ts_encoder(ts_emb) # B N C
 
             # Proj
-            ts_out = self.ts_proj(ts_enc)
-            ts_out = ts_out.permute(0,2,1)
-            ts_out = self.normalize_layers(ts_out, 'denorm')
+            ts_out = self.ts_proj(ts_enc) # B N 1
+            ts_out = ts_out.permute(0,2,1) # B 1 N
+            ts_out = self.ts_proj2(ts_out).squeeze() # B 1 1
 
         return ts_enc, prompt_enc, ts_out, prompt_out, ts_att_avg, prompt_att_avg
