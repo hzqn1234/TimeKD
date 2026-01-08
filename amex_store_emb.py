@@ -95,13 +95,17 @@ def parse_args():
     parser.add_argument("--output_len", type=int, default=1)
     parser.add_argument("--d_model", type=int, default=768)
     parser.add_argument("--l_layers", type=int, default=6)
+    parser.add_argument("--data_type", type=str, default='original')
+    parser.add_argument("--sampling", type=str, default='100pct')
 
     return parser.parse_args()
 
 def save_train_embeddings(args, train_test = 'train'):
     print(f'save_train_embeddings')
 
-    input_path = '../../000_data/amex/13month_10pct'
+    input_path = None
+    input_path = f'../../000_data/amex/{args.data_type}_{args.sampling}/'
+    
     series     = pd.read_feather(f'{input_path}/df_nn_series_{train_test}.feather')
     series_idx = pd.read_feather(f'{input_path}/df_nn_series_idx_{train_test}.feather').values
     
@@ -127,7 +131,7 @@ def save_train_embeddings(args, train_test = 'train'):
         l_layer=args.l_layers,
     ).to(args.device)
 
-    emb_path = f"amex_emb/10pct/{train_test}/"
+    emb_path = f"amex_emb/{args.data_type}/{args.sampling}/{train_test}/"
     os.makedirs(emb_path, exist_ok=True)
 
     # embeddings_list = []

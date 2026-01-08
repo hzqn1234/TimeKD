@@ -213,9 +213,7 @@ class GenPromptEmb(nn.Module):
     
         GT_HD_prompt = GT_HD.replace("value1, ..., valuen", values_str)
         HD_prompt = HD.replace("value1, ..., valuen", values_str)
-        HD_prompt = HD_prompt.replace("output_len", str(self.output_len))
         GT_HD_prompt = GT_HD_prompt.replace("gt1, ..., gtn", gt_str)
-        GT_HD_prompt = GT_HD_prompt.replace("output_len", str(self.output_len))
 
         hd_start_date = f'{time_ref[0,0]}'
         hd_end_date = f'{time_ref[0,-1]}'

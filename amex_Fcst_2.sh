@@ -2,21 +2,37 @@
 
 #### SBATCH -o gpu-job-%j.output
 #SBATCH -o gpu-job-train-2.output
-#SBATCH -p NV100q
+#SBATCH -p RTXA6Kq
 #SBATCH --gpus=1
 #SBATCH --gpus-per-node=1
 
 #SBATCH -n 1
-#SBATCH -c 4
-#SBATCH -w node17
+#SBATCH -c 8
+#SBATCH -w node11
 
 # export PYTHONPATH=/path/to/project_root:$PYTHONPATH
 # export CUDA_LAUNCH_BLOCKING=1
 
-CUDA_VISIBLE_DEVICES=2 python amex_train.py \
-                                --lrate 1e-4 \
-                                --sampling "1pct" \
-                                --epochs 20 2>&1 | tee logfile_train_2.txt
+
+for lr in 1e-3 1e-4 1e-5
+do
+    echo "lr: "$lr
+    # for seed in 42 420 4200 42000 420000
+    for seed in 420
+    do 
+        echo "seed: "$seed
+        CUDA_VISIBLE_DEVICES=1 python amex_train.py \
+                                        --lrate $lr \
+                                        --sampling "10pct" \
+                                        --data_type "original" \
+                                        --batch_size 16 \
+                                        --es_patience 3 \
+                                        --num_nodes 223 \
+                                        --seed $seed \
+                                        --epochs 20  ## 2>&1 | tee logfile_train_2.txt
+    done
+done
+
 
 # seq_lens=(96)
 # pred_lens=(24)
