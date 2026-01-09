@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 import torch.nn as nn
-from sklearn.metrics import accuracy_score, f1_score, cohen_kappa_score
+from sklearn.metrics import accuracy_score, f1_score, cohen_kappa_score, roc_auc_score
 
 def RSE(pred, true):
     return np.sqrt(np.sum((true-pred)**2)) / np.sqrt(np.sum((true-true.mean())**2))
@@ -26,9 +26,33 @@ def MAPE(pred, true):
 def MSPE(pred, true):
     return np.mean(np.square((pred - true) / true))
 
-def metric(pred, true):
-    mse = MSE(pred, true).item() # loss function
-    mae = MAE(pred, true).item()
+def amex_metric_mod(y_true, y_pred):
+
+    labels     = np.transpose(np.array([y_true, y_pred]))
+    labels     = labels[labels[:, 1].argsort()[::-1]]
+    weights    = np.where(labels[:,0]==0, 20, 1)
+    cut_vals   = labels[np.cumsum(weights) <= int(0.04 * np.sum(weights))]
+    top_four   = np.sum(cut_vals[:,0]) / np.sum(labels[:,0])
+
+    gini = [0,0]
+    for i in [1,0]:
+        labels         = np.transpose(np.array([y_true, y_pred]))
+        labels         = labels[labels[:, i].argsort()[::-1]]
+        weight         = np.where(labels[:,0]==0, 20, 1)
+        weight_random  = np.cumsum(weight / np.sum(weight))
+        total_pos      = np.sum(labels[:, 0] *  weight)
+        cum_pos_found  = np.cumsum(labels[:, 0] * weight)
+        lorentz        = cum_pos_found / total_pos
+        gini[i]        = np.sum((lorentz - weight_random) * weight)
+
+    return 0.5 * (gini[1]/gini[0] + top_four)
+
+def metric(preds,labels):
+    return amex_metric_mod(labels.cpu(),preds.cpu()), roc_auc_score(labels.cpu(),preds.cpu())
+
+# def metric(pred, true):
+    # mse = MSE(pred, true).item() # loss function
+    # mae = MAE(pred, true).item()
     # rmse = RMSE(pred, true)
     # mape = MAPE(pred, true)
     # mspe = MSPE(pred, true)
