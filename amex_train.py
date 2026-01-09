@@ -49,9 +49,9 @@ def parse_args():
     parser.add_argument("--epochs", type=int, default=10, help="")
     parser.add_argument('--seed', type=int, default=42, help='random seed')
     parser.add_argument('--kfold', type=int, default=5, help='number of folds')
-    parser.add_argument('--train', type=bool, default=True, help='flag to train')
-    parser.add_argument('--test', type=bool, default=True, help='flag to test')
-    parser.add_argument('--predict', type=bool, default=True, help='flag to predict')
+    parser.add_argument('--train', action='store_true', help='flag to train')
+    parser.add_argument('--test', action='store_true', help='flag to test')
+    parser.add_argument('--predict', action='store_true', help='flag to predict')
     parser.add_argument(
         "--es_patience",
         type=int,
@@ -76,6 +76,7 @@ class Amex_Dataset:
         self.uidxs = uidxs
         self.label_name = label_name
         self.id_name = id_name
+        self.is_train = df_y is not None
 
     def __len__(self):
         return (len(self.uidxs))
@@ -94,15 +95,16 @@ class Amex_Dataset:
         # feature_ = feature.copy()
         # feature_[feature_!=0] = 1.0 - feature_[feature_!=0] + 0.001
         
-        emb_path = f"amex_emb/{args.data_type}/{args.sampling}/train/"
-        file_path = os.path.join(emb_path, f"{idx}.h5")
-        # print(f'file_path: {file_path}')
+        if self.is_train:
+            emb_path = f"amex_emb/{args.data_type}/{args.sampling}/train/"
+            file_path = os.path.join(emb_path, f"{idx}.h5")
+            # print(f'file_path: {file_path}')
 
-        with h5py.File(file_path, 'r') as hf:
-            emb_data = hf['stacked_embeddings'][:]
-            emb_tensor = torch.from_numpy(emb_data)
+            with h5py.File(file_path, 'r') as hf:
+                emb_data = hf['stacked_embeddings'][:]
+                emb_tensor = torch.from_numpy(emb_data)
 
-        if self.df_y is not None:
+
             label = self.df_y.loc[idx,[self.label_name]].values
             return {
                     'SERIES': series,#np.concatenate([series,series_],axis=1),
@@ -141,7 +143,8 @@ class Amex_Dataset:
             batch_mask[i,:v.shape[0]] = 1.0
             # v = item['FEATURE'].astype(np.float32)
             # batch_feature[i] = torch.tensor(v).float()
-            if self.df_y is not None:
+
+            if self.is_train:
                 v = item['LABEL'].astype(np.float32)
                 batch_y[i] = torch.tensor(v).float()
                 batch_emb_tensor = torch.stack([sample['emb_tensor'] for sample in batch], dim=0) 
@@ -250,10 +253,14 @@ print(f'input_path: {input_path}')
 seed_it(args.seed)
 device = torch.device(args.device)
 
-path = os.path.join(args.save, args.data_path, 
-                    f"{args.data_type}_{args.sampling}_{args.lrate}_{args.seed}_{args.pred_len}_{args.channel}_{args.e_layer}_{args.dropout_n}_{args.att_w}/")
-if not os.path.exists(path):
-    os.makedirs(path)
+model_specs_template =  "{args.data_type}_{args.sampling}_{args.lrate}_{args.seed}_{args.pred_len}_{args.channel}_{args.e_layer}_{args.dropout_n}_{args.att_w}"
+model_specs          = f"{args.data_type}_{args.sampling}_{args.lrate}_{args.seed}_{args.pred_len}_{args.channel}_{args.e_layer}_{args.dropout_n}_{args.att_w}"
+model_path = os.path.join(args.save, args.data_path, model_specs, '')
+
+print(f'model_specs: {model_specs}')
+print(f'model_path: {model_path}')
+if not os.path.exists(model_path):
+    os.makedirs(model_path)
     
 
 # val_time = []
@@ -265,7 +272,6 @@ criterion = Criterion()
 
 def main_train():
     print(f'Training...')
-    train_start_time = time.time()
 
     trainval_series     = pd.read_feather(f'{input_path}/df_nn_series_train.feather')
     trainval_series_idx = pd.read_feather(f'{input_path}/df_nn_series_idx_train.feather').values
@@ -342,7 +348,7 @@ def main_train():
             val_ys = []
             s1 = time.time()
 
-            for _, data in enumerate(validation_dataloader):
+            for _, data in enumerate(tqdm(validation_dataloader)):
                 y = data['batch_y']
                 x = data['batch_series']
                 emb_tensor = data['batch_emb_tensor']
@@ -408,7 +414,7 @@ def main_train():
                 print("###Update tasks appear###")
 
                 loss = mvalid_loss
-                torch.save(engine.model.state_dict(), path + f"best_model_fold_{fold_index}.pth")
+                torch.save(engine.model.state_dict(), model_path + f"best_model_fold_{fold_index}.pth")
                 bestid = i
                 epochs_since_best_mse = 0
                 print("Updating! Valid Loss:{:.4f}".format(mvalid_loss), end=", ")
@@ -428,26 +434,29 @@ def main_train():
         print("The epoch of the best result：", bestid)
         print("The valid loss of the best model", str(round(his_loss[bestid - 1], 4)))
     
-    train_end_time = time.time()
-    train_duration = train_start_time - train_end_time
-
-    return train_duration
+    return 0
 
 
-def main_test():
-    print(f'Testing...')
-    test_start_time = time.time()
-    
+def main_test(predict_only=False):
+    print(f'Testing... predict_only={predict_only}')
+
+    if predict_only:
+        input_path = f'../../000_data/amex/original_100pct'
+        print(f'predict input_path: {input_path}')
+    else:
+        test_y          = pd.read_csv(f'{input_path}/test_labels.csv')['target']
+
     test_series     = pd.read_feather(f'{input_path}/df_nn_series_test.feather')
     test_series_idx = pd.read_feather(f'{input_path}/df_nn_series_idx_test.feather').values
-    test_y          = pd.read_csv(f'{input_path}/test_labels.csv')['target']
+
 
     test_dataset = Amex_Dataset(test_series,test_series_idx)
-    test_dataloader = DataLoader(test_dataset,batch_size=args.batch_size,shuffle=False, drop_last=False, collate_fn=test_dataset.collate_fn,num_workers=args.num_workers)
+    test_dataloader = DataLoader(test_dataset,batch_size=args.batch_size * 2,shuffle=False, drop_last=False, collate_fn=test_dataset.collate_fn,num_workers=args.num_workers)
 
     models = []
     test_outputs = []
 
+    print(f'Load models...')
     for fold_index in range(args.kfold):
         engine = trainer(
             scaler=StandardScaler,
@@ -466,12 +475,12 @@ def main_test():
         )
         
         model = engine.model
-        model.load_state_dict(torch.load(path + f"best_model_fold_{fold_index}.pth"), strict=False)
+        model.load_state_dict(torch.load(model_path + f"best_model_fold_{fold_index}.pth"), strict=False)
         model.eval()
         models.append(model)
               
 
-    for _, data in enumerate(test_dataloader):
+    for _, data in enumerate(tqdm(test_dataloader)):
         x = data['batch_series']
         testx = torch.Tensor(x).to(device).float()
 
@@ -485,47 +494,56 @@ def main_test():
 
 
     test_pre = torch.cat(test_outputs, dim=0)
-    test_real = torch.Tensor(test_y).to(device).float()
-
     pred = test_pre.squeeze().to(device)
-    real = test_real.to(device)
-    score = metric(pred, real)
-    print(f'score: {score}')
+    
+    if not predict_only:
+        test_real = torch.Tensor(test_y).to(device).float()
+        real = test_real.to(device)
+        score = metric(pred, real)
+        print(f'test score: {score}')
 
-    test_end_time = time.time()
-    test_duration = test_end_time - test_start_time
-    print(f"Test time (total): {test_duration:.4f} seconds")
+        ## output test result to log file
+        test_result_df = pd.DataFrame()
+        test_result_df['lr'] = [args.lrate]
+        test_result_df['amex_metric'] = [score[0]]
+        test_result_df['AUC'] = [score[1]]
+        test_result_df['sampling'] = [args.sampling]
+        test_result_df['data_type'] = [args.data_type]
+        test_result_df['seed'] = [args.seed]
+    
+        return test_result_df
+    
+    else:
+        sub = test_series[['customer_ID']].iloc[test_series_idx[:, 0]].copy()
+        sub['prediction'] = pred.cpu().detach().numpy()
+        sub.to_csv(model_path+'submission.csv.zip',index=False, compression='zip')
 
-    ## output test result to log file
-    test_result_df = pd.DataFrame()
-    test_result_df['lr'] = [args.lrate]
-    test_result_df['amex_metric'] = [score[0]]
-    test_result_df['AUC'] = [score[1]]
-    test_result_df['sampling'] = [args.sampling]
-    test_result_df['data_type'] = [args.data_type]
-    test_result_df['seed'] = [args.seed]
-    test_result_df['test_duration'] = [test_duration]
-
-    return test_result_df
+        os.system(f"kaggle competitions submit -c amex-default-prediction -f {model_path}/submission.csv.zip -m '{model_specs_template}: {model_specs}' ")
+        pass
 
 
 if __name__ == "__main__":
     train_duration = None
 
     if args.train:
-        t1 = time.time()
-        train_duration = main_train()
-        t2 = time.time()
-        print("Total train time spent: {:.4f}".format(t2 - t1))
+        t1 =  datetime.now()
+        print(f"Start training at {t1.strftime('%Y-%m-%d %H:%M:%S')}")
+
+        main_train()
+        train_duration = datetime.now() - t1
+        print(f"Total train time spent: {train_duration}")
 
     if args.test:
-        t1 = time.time()
-        test_result_df = main_test()
-        t2 = time.time()
-        print("Total test time spent: {:.4f}".format(t2 - t1))
+        t1 =  datetime.now()
+        print(f"Start testing at {t1.strftime('%Y-%m-%d %H:%M:%S')}")
 
+        test_result_df = main_test()
+        test_duration = datetime.now() - t1
+        print(f"Total test time spent: {test_duration}")
+
+        test_result_df['test_duration'] = [test_duration]
         test_result_df['train_duration'] = [train_duration]  
-        log_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        log_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         test_result_df['log_time'] = [log_time]  
         test_result_df['batch_size'] = [args.batch_size]  
         test_result_df['es_patience'] = [args.es_patience]      
@@ -536,5 +554,12 @@ if __name__ == "__main__":
             test_result_df.to_csv('./experiment_log.csv',index=False,header=None,mode='a') 
 
     if args.predict:
+        t1 =  datetime.now()
+        print(f"Start predicting at {t1.strftime('%Y-%m-%d %H:%M:%S')}")
+
+        main_test(predict_only=True)
+        predict_duration =  datetime.now() - t1
+        print(f"Total predict time spent: {predict_duration}")
+
         pass
 
