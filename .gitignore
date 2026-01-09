@@ -5,8 +5,7 @@ condaenv.6u34qjaq.requirements.txt
 data/
 data_provider/__pycache__/
 *.pyc
-forcast_log_001.output
-gpu-job.output
+*.output
 *.h5
 
 logs/
