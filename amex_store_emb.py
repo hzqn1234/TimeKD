@@ -10,6 +10,7 @@ from tqdm import tqdm
 
 import pandas as pd
 import numpy as np
+from datetime import datetime
 
 class Amex_Dataset:
     # def __init__(self,df_series,df_feature,uidxs,df_y=None):
@@ -180,14 +181,12 @@ def save_train_embeddings(args, train_test = 'train'):
     return 
 
 if __name__ == "__main__":
+    t1 = datetime.now()
+    print(f"Start at {t1.strftime('%Y-%m-%d %H:%M:%S')}")
+
     args = parse_args()
-
-    t1 = time.time()
     save_train_embeddings(args, 'train')
-    t2 = time.time()
-    print(f"Total time spent on save_train_embeddings: {(t2 - t1)/60:.4f} minutes")
 
-    # t3 = time.time()
-    # save_train_embeddings(args, 'test')
-    # t4 = time.time()
-    # print(f"Total time spent on save_test_embeddings: {(t4 - t3)/60:.4f} minutes")
+    t2 = datetime.now()
+    duration = t2 - t1
+    print(f"Total time spent: {duration}")
