@@ -14,7 +14,7 @@ CUDA_VISIBLE_DEVICES=3 \
 python amex_store_emb.py \
         --num_nodes 223 \
         --data_type "original" \
-        --sampling "10pct" \
+        --sampling "0.1pct" \
 
 
 # export PYTHONPATH=/path/to/project_root:$PYTHONPATH

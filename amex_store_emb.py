@@ -131,7 +131,7 @@ def save_train_embeddings(args, train_test = 'train'):
         l_layer=args.l_layers,
     ).to(args.device)
 
-    emb_path = f"amex_emb/{args.data_type}/{args.sampling}/{train_test}/"
+    emb_path = f'../../000_data/amex/emb/{args.data_type}_{args.sampling}/{train_test}/'
     os.makedirs(emb_path, exist_ok=True)
 
     # embeddings_list = []
