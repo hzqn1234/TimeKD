@@ -2,19 +2,19 @@
 
 #### SBATCH -o gpu-job-%j.output
 #SBATCH -o gpu-job-store-emb-3.output
-#SBATCH -p RTXA6Kq
-#SBATCH --gpus-per-node=4
+#SBATCH -p NH100q
+#SBATCH --gpus-per-node=2
 
 #SBATCH -n 1
 #SBATCH -c 8
-#SBATCH -w node08
+#SBATCH -w node07
 
-CUDA_VISIBLE_DEVICES=0,1,2,3 \
+CUDA_VISIBLE_DEVICES=2,3 \
 python amex_store_emb.py \
         --num_nodes 223 \
         --data_type "original" \
-        --batch_size 4 \
-        --sampling "0.1pct"
+        --batch_size 32 \
+        --sampling "100pct"
 
 
 # export PYTHONPATH=/path/to/project_root:$PYTHONPATH
