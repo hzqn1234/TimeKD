@@ -13,7 +13,7 @@ CUDA_VISIBLE_DEVICES=2,3 \
 python amex_store_emb.py \
         --num_nodes 223 \
         --data_type "original" \
-        --batch_size 4 \
+        --batch_size 32 \
         --sampling "100pct"
 
 

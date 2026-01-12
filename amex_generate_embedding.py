@@ -33,15 +33,13 @@ class MSK(nn.Module):
         # Gradient checkpointing reduces VRAM usage to prevent OOM
         self.gpt2.gradient_checkpointing_enable() 
 
-    def custom_forward(self, inputs_embeds, calibrated_mask):
-        # When wrapped in DataParallel, 'self.gpt2' is the raw model
+    def custom_forward(self, x_ids, calibrated_mask):
         module = self.gpt2
-        input_shape = inputs_embeds.size()
+        input_shape = x_ids.size()
         
-        # Position IDs must stay within 0-1023 to avoid Assertion errors
-        position_ids = torch.arange(0, input_shape[1], dtype=torch.long, device=inputs_embeds.device).unsqueeze(0)
+        position_ids = torch.arange(0, input_shape[1], dtype=torch.long, device=x_ids.device).unsqueeze(0)
 
-        inputs_embeds = module.wte(inputs_embeds)
+        inputs_embeds = module.wte(x_ids)
         position_embeds = module.wpe(position_ids)
         hidden_states = inputs_embeds + position_embeds
 
@@ -53,14 +51,11 @@ class MSK(nn.Module):
         return BaseModelOutputWithPastAndCrossAttentions(last_hidden_state=hidden_states)
 
     def forward(self, x_ids, calibrated_mask):
-        # Diagnostic: If working, you will see GPU 0 and GPU 1 prints here
-        # print(f"GPU {torch.cuda.current_device()} processing {x_ids.shape[0]} sequences", flush=True)
-        
         num_heads = self.gpt2.config.n_head
         # Prepare mask for multi-head attention (Batch, 1, Seq, Seq)
         calibrated_mask = calibrated_mask.unsqueeze(1).repeat(1, num_heads, 1, 1)
 
-        output = self.custom_forward(inputs_embeds=x_ids, calibrated_mask=calibrated_mask).last_hidden_state
+        output = self.custom_forward(x_ids=x_ids, calibrated_mask=calibrated_mask).last_hidden_state
         return output
 
 class GenPromptEmb(nn.Module):
@@ -83,9 +78,19 @@ class GenPromptEmb(nn.Module):
         for param in self.sub_ac.parameters():
             param.requires_grad = False
 
+        # --- PRE-TOKENIZATION CACHE ---
+        # Tokenize static strings once during initialization
+        self.id_from = self.tokenizer.encode("From ", add_special_tokens=False)
+        self.id_to = self.tokenizer.encode(" to ", add_special_tokens=False)
+        self.id_vals_prefix = self.tokenizer.encode(", the values were ", add_special_tokens=False)
+        self.id_suffix_gt = self.tokenizer.encode(" every month. The value for Y label is ", add_special_tokens=False)
+        self.id_suffix_hd = self.tokenizer.encode(" every month. Forecast the value for Y label", add_special_tokens=False)
+
     def _generate_mask_batch(self, input_ids):
         batch_size, seq_len = input_ids.shape
         masks = torch.zeros((batch_size, seq_len, seq_len), device=self.device)
+        # Note: In a pre-tokenized setup, you should use markers if your numeric data 
+        # is wrapped in them. If not using < >, this logic needs adjustment.
         start_marker = self.tokenizer.encode("<", add_special_tokens=False)[0]
         end_marker = self.tokenizer.encode(">", add_special_tokens=False)[0]
 
@@ -98,43 +103,59 @@ class GenPromptEmb(nn.Module):
                 if capturing: ts_indices.append(idx)
                 else: lang_indices.append(idx)
                 if tid == end_marker: capturing = False
-            for i in lang_indices:
-                for j in ts_indices:
-                    masks[b, i, j] = masks[b, j, i] = -100.0
+            
+            if ts_indices and lang_indices:
+                # Optimized mask filling
+                masks[b][np.ix_(lang_indices, ts_indices)] = -100.0
+                masks[b][np.ix_(ts_indices, lang_indices)] = -100.0
         return masks
 
     def generate_embeddings(self, x, y, time_ref):
         batch_size = x.shape[0]
-        all_gt_prompts, all_hd_prompts = [], []
+        all_gt_ids = []
+        all_hd_ids = []
         
-        # 1. Optimized String Construction
-        for i in range(batch_size):
-            t1, t2 = str(time_ref[i][0]), str(time_ref[i][-1])
-            gt_y = str(int(y[i][0])) 
-            nodes_data = x[i].to(torch.int).cpu().numpy().T
+        # 1. Assembly of Token IDs (Bypassing full string tokenization)
+        with torch.no_grad():
+            for i in range(batch_size):
+                # Tokenize only the dynamic parts (dates and target)
+                t1_ids = self.tokenizer.encode(str(time_ref[i][0]), add_special_tokens=False)
+                t2_ids = self.tokenizer.encode(str(time_ref[i][-1]), add_special_tokens=False)
+                y_label_ids = self.tokenizer.encode(str(int(y[i][0])), add_special_tokens=False)
+                
+                nodes_data = x[i].to(torch.int).cpu().numpy().T
 
-            for node_timeline in nodes_data:
-                vals_x = ", ".join(map(str, node_timeline))
-                all_gt_prompts.append(f"From {t1} to {t2}, the values were {vals_x} every month. The value for Y label is {gt_y}")
-                all_hd_prompts.append(f"From {t1} to {t2}, the values were {vals_x} every month. Forecast the value for Y label")
+                for node_timeline in nodes_data:
+                    # While we join numbers here, we avoid tokenizing the rest of the sentence repetitively
+                    vals_str = ", ".join(map(str, node_timeline))
+                    vals_ids = self.tokenizer.encode(vals_str, add_special_tokens=False)
 
-        # 2. Tokenization
-        gt_tok = self.tokenizer(all_gt_prompts, padding=True, return_tensors="pt").to(self.device)
-        hd_tok = self.tokenizer(all_hd_prompts, padding=True, return_tensors="pt").to(self.device)
+                    # Concatenate pre-computed IDs with dynamic IDs
+                    # GT Sequence: [From] [T1] [to] [T2] [, values were] [VALS] [suffix_gt] [Y]
+                    gt_seq = self.id_from + t1_ids + self.id_to + t2_ids + self.id_vals_prefix + vals_ids + self.id_suffix_gt + y_label_ids
+                    # HD Sequence: [From] [T1] [to] [T2] [, values were] [VALS] [suffix_hd]
+                    hd_seq = self.id_from + t1_ids + self.id_to + t2_ids + self.id_vals_prefix + vals_ids + self.id_suffix_hd
 
-        # 3. Mask Generation
-        gt_masks = self._generate_mask_batch(gt_tok['input_ids'])
-        hd_masks = self._generate_mask_batch(hd_tok['input_ids'])
+                    all_gt_ids.append(torch.tensor(gt_seq))
+                    all_hd_ids.append(torch.tensor(hd_seq))
 
-        # 4. Forward Pass - DataParallel splits 'gt_tok' (Batch * Nodes) sequences
-        # Result shape: (Batch * Nodes, Seq_Len, D_Model)
-        gt_out = self.gpt2(gt_tok['input_ids'], gt_masks)
-        hd_out = self.gpt2(hd_tok['input_ids'], hd_masks)
+            # 2. Padding and Tensor conversion
+            gt_tok_ids = torch.nn.utils.rnn.pad_sequence(all_gt_ids, batch_first=True, padding_value=self.tokenizer.pad_token_id).to(self.device)
+            hd_tok_ids = torch.nn.utils.rnn.pad_sequence(all_hd_ids, batch_first=True, padding_value=self.tokenizer.pad_token_id).to(self.device)
 
-        # 5. Reshape and Cross-Attention
-        # Re-organize into (Batch, Nodes, Seq_Len, D_Model) to extract last token
-        gt_emb = gt_out.view(batch_size, self.num_nodes, -1, self.d_model)[:, :, -1, :].permute(0, 2, 1)
-        hd_emb = hd_out.view(batch_size, self.num_nodes, -1, self.d_model)[:, :, -1, :].permute(0, 2, 1)
+            # 3. Mask Generation
+            gt_masks = self._generate_mask_batch(gt_tok_ids)
+            hd_masks = self._generate_mask_batch(hd_tok_ids)
 
-        sub_out = self.sub_ac(gt_emb, hd_emb, hd_emb)
-        return sub_out.permute(0, 2, 1).squeeze()
+            # 4. Forward Pass with Mixed Precision
+            with torch.amp.autocast(device_type='cuda', dtype=torch.float16):
+                gt_out = self.gpt2(gt_tok_ids, gt_masks)
+                hd_out = self.gpt2(hd_tok_ids, hd_masks)
+
+            # 5. Extract Embeddings & Cross-Attention
+            # Shape: (Batch, Nodes, Seq_Len, D_Model) -> extract last token -> permute to (Batch, D_Model, Nodes)
+            gt_emb = gt_out.view(batch_size, self.num_nodes, -1, self.d_model)[:, :, -1, :].permute(0, 2, 1)
+            hd_emb = hd_out.view(batch_size, self.num_nodes, -1, self.d_model)[:, :, -1, :].permute(0, 2, 1)
+
+            sub_out = self.sub_ac(gt_emb, hd_emb, hd_emb)
+            return sub_out.permute(0, 2, 1).squeeze()
