@@ -10,6 +10,7 @@ from tqdm import tqdm
 
 import pandas as pd
 import numpy as np
+from datetime import datetime
 
 class Amex_Dataset:
     # def __init__(self,df_series,df_feature,uidxs,df_y=None):
@@ -56,7 +57,8 @@ class Amex_Dataset:
 
     def collate_fn(self, batch):
         """
-        Padding to same size.
+        Padding to same size for tensors.
+        Keeping time_ref as a list for inhomogeneous shapes.
         """
 
         batch_size = len(batch)
@@ -64,7 +66,9 @@ class Amex_Dataset:
         batch_mask = torch.zeros((batch_size, 13))
         # batch_feature = torch.zeros((batch_size, batch[0]['FEATURE'].shape[0]))
         batch_y = torch.zeros((batch_size, 1))
-        batch_time_ref = np.array([sample['time_ref'] for sample in batch])
+
+        # Keep as a list to avoid "inhomogeneous shape" ValueError
+        batch_time_ref = [sample['time_ref'].values for sample in batch]
         batch_idx = np.array([sample['idx'] for sample in batch])
 
         for i, item in enumerate(batch):
@@ -97,6 +101,7 @@ def parse_args():
     parser.add_argument("--l_layers", type=int, default=6)
     parser.add_argument("--data_type", type=str, default='original')
     parser.add_argument("--sampling", type=str, default='100pct')
+    parser.add_argument("--batch_size", type=int, default=1)
 
     return parser.parse_args()
 
@@ -112,10 +117,10 @@ def save_train_embeddings(args, train_test = 'train'):
     if train_test == 'train':
         y = pd.read_csv(f'{input_path}/{train_test}_labels.csv')
         dataset = Amex_Dataset(series,series_idx,y)
-        dataloader = DataLoader(dataset,batch_size=1,shuffle=True, drop_last=True, collate_fn=dataset.collate_fn,num_workers=args.num_workers)
+        dataloader = DataLoader(dataset,batch_size=args.batch_size,shuffle=False, drop_last=False, collate_fn=dataset.collate_fn,num_workers=args.num_workers)
     elif train_test == 'test':
         dataset = Amex_Dataset(series,series_idx)
-        dataloader = DataLoader(dataset,batch_size=1,shuffle=True, drop_last=True, collate_fn=dataset.collate_fn,num_workers=args.num_workers)
+        dataloader = DataLoader(dataset,batch_size=args.batch_size,shuffle=False, drop_last=False, collate_fn=dataset.collate_fn,num_workers=args.num_workers)
     else:
         print(f'train_test: {train_test}')
         exit()
@@ -131,7 +136,7 @@ def save_train_embeddings(args, train_test = 'train'):
         l_layer=args.l_layers,
     ).to(args.device)
 
-    emb_path = f"amex_emb/{args.data_type}/{args.sampling}/{train_test}/"
+    emb_path = f'../../000_data/amex/{args.data_type}_{args.sampling}/emb/{train_test}/'
     os.makedirs(emb_path, exist_ok=True)
 
     # embeddings_list = []
@@ -141,7 +146,7 @@ def save_train_embeddings(args, train_test = 'train'):
         y = data['batch_y'].to(args.device)
         x = data['batch_series'].to(args.device)
         time_ref = data['batch_time_ref']
-        idx = data['batch_idx']
+        idxs = data['batch_idx']
         
         # hd_start_date = f'{time_ref[0,0]}'
         # hd_end_date = f'{time_ref[0,-1]}'
@@ -152,24 +157,36 @@ def save_train_embeddings(args, train_test = 'train'):
         # print(f'time_ref_shape: {time_ref.shape}')
         # exit()
 
-        embeddings = gen_prompt_emb.generate_embeddings(x, y, time_ref)
+        # embeddings = gen_prompt_emb.generate_embeddings(x, y, time_ref)
         # print(f'embeddings_shape: {embeddings.shape}')
 
-        file_path = f"{emb_path}/{idx[0]}.h5"
-        with h5py.File(file_path, 'w') as hf:
-            hf.create_dataset('stacked_embeddings', data=embeddings.detach().cpu().numpy())
+        # file_path = f"{emb_path}/{idx[0]}.h5"
+        # with h5py.File(file_path, 'w') as hf:
+        #     hf.create_dataset('stacked_embeddings', data=embeddings.detach().cpu().numpy())
+
+        # This processes BATCH_SIZE * NUM_NODES in one GPU pass
+        embeddings_batch = gen_prompt_emb.generate_embeddings(x, y, time_ref)
+
+        # Iterate through the batch to save individual files
+        for i, customer_id in enumerate(idxs):
+            file_path = f"{emb_path}/{customer_id}.h5"
+            # Extract the specific embedding for this customer
+            # Result of generate_embeddings is (Batch, Nodes, D_model)
+            customer_emb = embeddings_batch[i].detach().cpu().numpy() 
+            
+            with h5py.File(file_path, 'w') as hf:
+                hf.create_dataset('stacked_embeddings', data=customer_emb)
+
 
     return 
 
 if __name__ == "__main__":
+    t1 = datetime.now()
+    print(f"Start at {t1.strftime('%Y-%m-%d %H:%M:%S')}")
+
     args = parse_args()
-
-    t1 = time.time()
     save_train_embeddings(args, 'train')
-    t2 = time.time()
-    print(f"Total time spent on save_train_embeddings: {(t2 - t1)/60:.4f} minutes")
 
-    # t3 = time.time()
-    # save_train_embeddings(args, 'test')
-    # t4 = time.time()
-    # print(f"Total time spent on save_test_embeddings: {(t4 - t3)/60:.4f} minutes")
+    t2 = datetime.now()
+    duration = t2 - t1
+    print(f"Total time spent: {duration}")
