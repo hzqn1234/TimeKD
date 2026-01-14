@@ -96,7 +96,7 @@ class Amex_Dataset:
         # feature_[feature_!=0] = 1.0 - feature_[feature_!=0] + 0.001
         
         if self.is_train:
-            emb_path = f"amex_emb/{args.data_type}/{args.sampling}/train/"
+            # emb_path = f"amex_emb/{args.data_type}/{args.sampling}/train/"
             file_path = os.path.join(emb_path, f"{idx}.h5")
             # print(f'file_path: {file_path}')
 
@@ -147,7 +147,10 @@ class Amex_Dataset:
             if self.is_train:
                 v = item['LABEL'].astype(np.float32)
                 batch_y[i] = torch.tensor(v).float()
-                batch_emb_tensor = torch.stack([sample['emb_tensor'] for sample in batch], dim=0) 
+        
+        if self.is_train:
+            batch_emb_tensor = torch.stack([sample['emb_tensor'] for sample in batch], dim=0) 
+                
 
         return {'batch_series':batch_series
                 ,'batch_mask':batch_mask
@@ -247,8 +250,10 @@ def seed_it(seed):
     torch.backends.cudnn.benchmark = False
 
 args = parse_args()
-input_path = f'../../000_data/amex/{args.data_type}_{args.sampling}'
-print(f'input_path: {input_path}')
+INPUT_PATH  = f'../../000_data/amex/{args.data_type}_{args.sampling}'
+emb_path    = f'../../000_data/amex/{args.data_type}_{args.sampling}/emb/train/'
+print(f'INPUT_PATH: {INPUT_PATH}')
+print(f'emb_path: {emb_path}')
 
 seed_it(args.seed)
 device = torch.device(args.device)
@@ -272,7 +277,7 @@ criterion = Criterion()
 
 def main_train():
     print(f'Training...')
-
+    input_path = INPUT_PATH
     trainval_series     = pd.read_feather(f'{input_path}/df_nn_series_train.feather')
     trainval_series_idx = pd.read_feather(f'{input_path}/df_nn_series_idx_train.feather').values
     trainval_y = pd.read_csv(f'{input_path}/train_labels.csv')
@@ -321,10 +326,11 @@ def main_train():
                 trainy = torch.Tensor(y).to(device).float()
                 emb = torch.Tensor(emb_tensor).to(device).float()
 
-                ## debug print
+                # debug print
                 # print(f'trainx shape: {trainx.shape}')
                 # print(f'trainy shape: {trainy.shape}')
-                # print(f'emb shape: {emb.shape}')
+                print(f'emb shape: {emb.shape}', flush=True)
+                print(f"idx: {data['batch_idx']}", flush=True)
 
                 curr_train_loss, train_pred_y = engine.train(trainx, trainy, emb)
                 train_loss.append(curr_train_loss)
@@ -444,6 +450,7 @@ def main_test(predict_only=False):
         input_path = f'../../000_data/amex/original_100pct'
         print(f'predict input_path: {input_path}')
     else:
+        input_path = INPUT_PATH
         test_y          = pd.read_csv(f'{input_path}/test_labels.csv')['target']
 
     test_series     = pd.read_feather(f'{input_path}/df_nn_series_test.feather')
@@ -518,7 +525,8 @@ def main_test(predict_only=False):
         sub['prediction'] = pred.cpu().detach().numpy()
         sub.to_csv(model_path+'submission.csv.zip',index=False, compression='zip')
 
-        os.system(f"kaggle competitions submit -c amex-default-prediction -f {model_path}/submission.csv.zip -m '{model_specs_template}: {model_specs}' ")
+        os.system(f"kaggle competitions submit -c amex-default-prediction -f {model_path}/submission.csv.zip -m '{model_specs_template}: {model_specs}'")
+        print("\n")
         pass
 
 

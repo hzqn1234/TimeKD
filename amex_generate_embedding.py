@@ -158,4 +158,5 @@ class GenPromptEmb(nn.Module):
             hd_emb = hd_out.view(batch_size, self.num_nodes, -1, self.d_model)[:, :, -1, :].permute(0, 2, 1)
 
             sub_out = self.sub_ac(gt_emb, hd_emb, hd_emb)
-            return sub_out.permute(0, 2, 1).squeeze()
+            return sub_out.permute(0, 2, 1)
+            # return sub_out.permute(0, 2, 1).squeeze()

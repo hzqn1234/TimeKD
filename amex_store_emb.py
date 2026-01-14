@@ -185,6 +185,7 @@ if __name__ == "__main__":
     print(f"Start at {t1.strftime('%Y-%m-%d %H:%M:%S')}")
 
     args = parse_args()
+    print(args)
     save_train_embeddings(args, 'train')
 
     t2 = datetime.now()
