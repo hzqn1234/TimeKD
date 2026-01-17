@@ -52,6 +52,8 @@ def parse_args():
     parser.add_argument('--train', action='store_true', help='flag to train')
     parser.add_argument('--test', action='store_true', help='flag to test')
     parser.add_argument('--predict', action='store_true', help='flag to predict')
+    parser.add_argument('--submit', action='store_true', help='flag to submit')
+    
     parser.add_argument(
         "--es_patience",
         type=int,
@@ -258,8 +260,8 @@ print(f'emb_path: {emb_path}')
 seed_it(args.seed)
 device = torch.device(args.device)
 
-model_specs_template =  "{args.data_type}_{args.sampling}_{args.lrate}_{args.seed}_{args.pred_len}_{args.channel}_{args.e_layer}_{args.dropout_n}_{args.att_w}"
-model_specs          = f"{args.data_type}_{args.sampling}_{args.lrate}_{args.seed}_{args.pred_len}_{args.channel}_{args.e_layer}_{args.dropout_n}_{args.att_w}"
+model_specs_template =  "{args.data_type}_{args.sampling}_{args.lrate}_{args.seed}_{args.batch_size}_{args.es_patience}_{args.channel}_{args.e_layer}_{args.dropout_n}_{args.att_w}"
+model_specs          = f"{args.data_type}_{args.sampling}_{args.lrate}_{args.seed}_{args.batch_size}_{args.es_patience}_{args.channel}_{args.e_layer}_{args.dropout_n}_{args.att_w}"
 model_path = os.path.join(args.save, args.data_path, model_specs, '')
 
 print(f'model_specs: {model_specs}')
@@ -312,6 +314,7 @@ def main_train():
         his_loss = []
 
         for i in range(1, args.epochs + 1):
+            print(f"Staring training: fold {fold_index} - Epoch {i}")
             t1 = time.time()
             train_loss = []
             train_outputs = []
@@ -325,12 +328,6 @@ def main_train():
                 trainx = torch.Tensor(x).to(device).float()
                 trainy = torch.Tensor(y).to(device).float()
                 emb = torch.Tensor(emb_tensor).to(device).float()
-
-                # debug print
-                # print(f'trainx shape: {trainx.shape}')
-                # print(f'trainy shape: {trainy.shape}')
-                print(f'emb shape: {emb.shape}', flush=True)
-                print(f"idx: {data['batch_idx']}", flush=True)
 
                 curr_train_loss, train_pred_y = engine.train(trainx, trainy, emb)
                 train_loss.append(curr_train_loss)
@@ -376,7 +373,6 @@ def main_train():
             s2 = time.time()
             log = "Epoch: {:03d}, Validation Time: {:.4f} secs"
             print(log.format(i, (s2 - s1)))
-            # val_time.append(s2 - s1)
         
             ## calculate train metrics
             train_pre = torch.cat(train_outputs, dim=0)
@@ -524,9 +520,6 @@ def main_test(predict_only=False):
         sub = test_series[['customer_ID']].iloc[test_series_idx[:, 0]].copy()
         sub['prediction'] = pred.cpu().detach().numpy()
         sub.to_csv(model_path+'submission.csv.zip',index=False, compression='zip')
-
-        os.system(f"kaggle competitions submit -c amex-default-prediction -f {model_path}/submission.csv.zip -m '{model_specs_template}: {model_specs}'")
-        print("\n")
         pass
 
 
@@ -569,5 +562,8 @@ if __name__ == "__main__":
         predict_duration =  datetime.now() - t1
         print(f"Total predict time spent: {predict_duration}")
 
+    if args.submit:
+        os.system(f"kaggle competitions submit -c amex-default-prediction -f {model_path}/submission.csv.zip -m '{model_specs_template}: {model_specs}'")
+        print("\n")
         pass
 

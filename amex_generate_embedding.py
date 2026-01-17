@@ -130,6 +130,14 @@ class GenPromptEmb(nn.Module):
                     vals_str = ", ".join(map(str, node_timeline))
                     vals_ids = self.tokenizer.encode(vals_str, add_special_tokens=False)
 
+        # # --- PRE-TOKENIZATION CACHE ---
+        # # Tokenize static strings once during initialization
+        # self.id_from = self.tokenizer.encode("From ", add_special_tokens=False)
+        # self.id_to = self.tokenizer.encode(" to ", add_special_tokens=False)
+        # self.id_vals_prefix = self.tokenizer.encode(", the values were ", add_special_tokens=False)
+        # self.id_suffix_gt = self.tokenizer.encode(" every month. The value for Y label is ", add_special_tokens=False)
+        # self.id_suffix_hd = self.tokenizer.encode(" every month. Forecast the value for Y label", add_special_tokens=False)
+
                     # Concatenate pre-computed IDs with dynamic IDs
                     # GT Sequence: [From] [T1] [to] [T2] [, values were] [VALS] [suffix_gt] [Y]
                     gt_seq = self.id_from + t1_ids + self.id_to + t2_ids + self.id_vals_prefix + vals_ids + self.id_suffix_gt + y_label_ids
