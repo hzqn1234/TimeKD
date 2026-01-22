@@ -1,13 +1,13 @@
 #!/bin/sh
 
 #### SBATCH -o gpu-job-%j.output
-#SBATCH -o gpu-job-train-2.output
-#SBATCH -p NA100q
+#SBATCH -o gpu-job-train-5.output
+#SBATCH -p RTXA6Kq
 #SBATCH --gpus-per-node=1
 
 #SBATCH -n 1
 #SBATCH -c 16
-#SBATCH -w node01
+#SBATCH -w node08
 
 # export PYTHONPATH=/path/to/project_root:$PYTHONPATH
 # export CUDA_LAUNCH_BLOCKING=1
@@ -18,7 +18,7 @@ do
     for seed in 42
     do 
         echo "seed: "$seed
-        CUDA_VISIBLE_DEVICES=0 python amex_train.py \
+        CUDA_VISIBLE_DEVICES=2 python amex_train.py \
                                         --lrate $lr \
                                         --sampling "10pct" \
                                         --data_type "original" \
@@ -34,7 +34,7 @@ do
                                         --feature_w 0.000001\
                                         --fcst_w 1\
                                         --recon_w 1\
-                                        --att_w 0.000001\
+                                        --att_w 1\
                                         --epochs 20 
     done
 done
