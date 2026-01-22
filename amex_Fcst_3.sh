@@ -7,29 +7,34 @@
 
 #SBATCH -n 1
 #SBATCH -c 16
-#SBATCH -w node02
+#SBATCH -w node03
 
 # export PYTHONPATH=/path/to/project_root:$PYTHONPATH
 # export CUDA_LAUNCH_BLOCKING=1
 
-for lr in 1e-5
+for lr in 1e-3 1e-4 1e-5 2e-3 2e-4 2e-5
 do
     echo "lr: "$lr
     for seed in 42
     do 
         echo "seed: "$seed
-        CUDA_VISIBLE_DEVICES=3 python amex_train.py \
+        CUDA_VISIBLE_DEVICES=2 python amex_train.py \
                                         --lrate $lr \
-                                        --sampling "100pct" \
+                                        --sampling "10pct" \
                                         --data_type "original" \
                                         --num_nodes 223 \
                                         --es_patience 3 \
                                         --seed $seed \
                                         --train \
+                                        --test \
                                         --predict \
                                         --submit \
-                                        --batch_size 256 \
+                                        --batch_size 128 \
                                         --num_workers 16 \
+                                        --feature_w 0.000001\
+                                        --fcst_w 1\
+                                        --recon_w 0.000001\
+                                        --att_w 1\
                                         --epochs 20 
     done
 done

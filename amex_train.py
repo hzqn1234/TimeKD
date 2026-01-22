@@ -260,8 +260,12 @@ print(f'emb_path: {emb_path}')
 seed_it(args.seed)
 device = torch.device(args.device)
 
-model_specs_template =  "{args.data_type}_{args.sampling}_{args.lrate}_{args.seed}_{args.batch_size}_{args.es_patience}_{args.channel}_{args.e_layer}_{args.dropout_n}_{args.att_w}"
-model_specs          = f"{args.data_type}_{args.sampling}_{args.lrate}_{args.seed}_{args.batch_size}_{args.es_patience}_{args.channel}_{args.e_layer}_{args.dropout_n}_{args.att_w}"
+model_specs_template =    "{args.data_type}_{args.sampling}_{args.lrate}_{args.seed}_{args.batch_size}_{args.es_patience}" \
+                       +  "_{args.channel}_{args.e_layer}_{args.dropout_n}" \
+                       +  "_{args.feature_w}_{args.fcst_w}_{args.recon_w}_{args.att_w}"
+model_specs          =   f"{args.data_type}_{args.sampling}_{args.lrate}_{args.seed}_{args.batch_size}_{args.es_patience}" \
+                       + f"_{args.channel}_{args.e_layer}_{args.dropout_n}" \
+                       + f"_{args.feature_w}_{args.fcst_w}_{args.recon_w}_{args.att_w}"
 model_path = os.path.join(args.save, args.data_path, model_specs, '')
 
 print(f'model_specs: {model_specs}')
@@ -278,7 +282,9 @@ print(args)
 criterion = Criterion()
 
 def main_train():
-    print(f'Training...')
+    train_start_time = datetime.now()
+    print(f"Start training at {train_start_time}")
+    
     input_path = INPUT_PATH
     trainval_series     = pd.read_feather(f'{input_path}/df_nn_series_train.feather')
     trainval_series_idx = pd.read_feather(f'{input_path}/df_nn_series_idx_train.feather').values
@@ -286,7 +292,8 @@ def main_train():
 
     skf = StratifiedKFold(n_splits=args.kfold, shuffle=True, random_state=args.seed)
     for fold_index, (trn_index, val_index) in enumerate(skf.split(trainval_y,trainval_y['target'])):
-        print(f"Start training... Fold {fold_index}", flush=True)
+        fold_train_start_time =  datetime.now()
+        print(f"Start training... Fold {fold_index} at {fold_train_start_time}")
 
         engine = trainer(
             scaler=StandardScaler,
@@ -311,7 +318,9 @@ def main_train():
 
         loss = 9999999
         epochs_since_best_mse = 0
+        best_score=None
         his_loss = []
+        early_stopped = False
 
         for i in range(1, args.epochs + 1):
             print(f"Staring training: fold {fold_index} - Epoch {i}")
@@ -381,8 +390,8 @@ def main_train():
 
             pred = train_pre.squeeze().to(device)
             real = train_real.to(device)
-            score = metric(pred.detach(), real.detach())
-            print(f'train score: {score}')
+            train_score = metric(pred.detach(), real.detach())
+            print(f'train_score: {train_score}')
 
             ## calculate val metrics
             val_pre = torch.cat(val_outputs, dim=0)
@@ -391,8 +400,8 @@ def main_train():
 
             pred = val_pre.squeeze().to(device)
             real = val_real.to(device)
-            score = metric(pred.detach(), real.detach())
-            print(f'val score: {score}')
+            val_score = metric(pred.detach(), real.detach())
+            print(f'val_score: {val_score}')
 
             ## Log loss
             mtrain_loss = np.mean(train_loss)
@@ -419,6 +428,7 @@ def main_train():
                 torch.save(engine.model.state_dict(), model_path + f"best_model_fold_{fold_index}.pth")
                 bestid = i
                 epochs_since_best_mse = 0
+                best_score = val_score
                 print("Updating! Valid Loss:{:.4f}".format(mvalid_loss), end=", ")
                 print("epoch: ", i)
             else:
@@ -429,25 +439,46 @@ def main_train():
 
             # if epochs_since_best_mse >= args.es_patience and i >= min(args.epochs//2, 10): # early stop
             if epochs_since_best_mse >= args.es_patience: # early stop
+                early_stopped = True
                 print("Early Stop \n")
                 break
 
-        print("Training ends")
-        print("The epoch of the best result：", bestid)
-        print("The valid loss of the best model", str(round(his_loss[bestid - 1], 4)))
+        fold_train_end_time = datetime.now()
+        fold_train_duration = fold_train_end_time - fold_train_start_time
+        print(f"Training ends... Fold {fold_index} at {fold_train_end_time}")
+        print(f"Total train time spent for fold {fold_index}: {fold_train_duration}")
+        print(f"The epoch of the best result：{bestid}")
+        print(f"The valid loss of the best model {str(round(his_loss[bestid - 1], 4))} \n", )
     
-    return 0
+        ## output train result to log file
+        log_df = create_log_df()
+        log_df['fold_index'] = [fold_index]
+        log_df['amex_metric'] = [f"{best_score[0]:.6g}"]
+        log_df['AUC'] = [f"{best_score[1]:.6g}"]
+        log_df['early_stopped'] = [early_stopped]
+        log_df['fold_train_start_time'] = [fold_train_start_time.strftime('%Y-%m-%d %H:%M:%S')]
+        log_df['fold_train_end_time'] = [fold_train_end_time.strftime('%Y-%m-%d %H:%M:%S')]
+        log_df['fold_train_duration'] = [fold_train_duration]
+        log_df = save_log(log_type='train',log_df=log_df)
+    
+    train_end_time = datetime.now()
+    train_duration = train_end_time - train_start_time
+    print(f"Training ends at {train_end_time}")
+    print(f"Total train time spent for all folds: {train_duration} \n")    
+    return log_df
 
 
-def main_test(predict_only=False):
-    print(f'Testing... predict_only={predict_only}')
+def main_test(is_predict=False):
+    test_start_time =  datetime.now()
+    print(f"Start Testing at {test_start_time}")
+    print(f'is_predict={is_predict}')
 
-    if predict_only:
+    if is_predict:
         input_path = f'../../000_data/amex/original_100pct'
         print(f'predict input_path: {input_path}')
     else:
         input_path = INPUT_PATH
-        test_y          = pd.read_csv(f'{input_path}/test_labels.csv')['target']
+        test_y     = pd.read_csv(f'{input_path}/test_labels.csv')['target']
 
     test_series     = pd.read_feather(f'{input_path}/df_nn_series_test.feather')
     test_series_idx = pd.read_feather(f'{input_path}/df_nn_series_idx_test.feather').values
@@ -499,71 +530,80 @@ def main_test(predict_only=False):
     test_pre = torch.cat(test_outputs, dim=0)
     pred = test_pre.squeeze().to(device)
     
-    if not predict_only:
+    if not is_predict:
         test_real = torch.Tensor(test_y).to(device).float()
         real = test_real.to(device)
-        score = metric(pred, real)
-        print(f'test score: {score}')
-
-        ## output test result to log file
-        test_result_df = pd.DataFrame()
-        test_result_df['lr'] = [args.lrate]
-        test_result_df['amex_metric'] = [score[0]]
-        test_result_df['AUC'] = [score[1]]
-        test_result_df['sampling'] = [args.sampling]
-        test_result_df['data_type'] = [args.data_type]
-        test_result_df['seed'] = [args.seed]
-    
-        return test_result_df
-    
+        test_score = metric(pred, real)
+        print(f'test_score: {test_score}')
+   
     else:
         sub = test_series[['customer_ID']].iloc[test_series_idx[:, 0]].copy()
         sub['prediction'] = pred.cpu().detach().numpy()
         sub.to_csv(model_path+'submission.csv.zip',index=False, compression='zip')
-        pass
+  
+    test_end_time = datetime.now()
+    test_duration = test_end_time - test_start_time
+    print(f"Testing ends at {test_end_time}")
+    print(f"Total test time spent: {test_duration}") 
 
+    ## output test result to log file
+    log_df = create_log_df()
+    log_df['is_predict'] = [is_predict]
+    if not is_predict:
+        log_df['amex_metric']   = [f"{test_score[0]:.6g}"]
+        log_df['AUC']           = [f"{test_score[1]:.6g}"]
+        log_type='test'
+    else:
+        log_df['amex_metric']   = [None]
+        log_df['AUC']           = [None]
+        log_type='predict'
+    log_df['test_start_time'] = [test_start_time.strftime('%Y-%m-%d %H:%M:%S')]
+    log_df['test_end_time'] = [test_end_time.strftime('%Y-%m-%d %H:%M:%S')]
+    log_df['test_duration'] = [test_duration]
+    log_df = save_log(log_type=log_type,log_df=log_df)
+    return log_df
+
+def create_log_df():
+    log_df = pd.DataFrame()
+    log_df['model_specs'] = [model_specs]
+    log_df['log_time'] = [datetime.now().strftime('%Y-%m-%d %H:%M:%S')] 
+    log_df['feature_w'] = [args.feature_w]
+    log_df['fcst_w'] = [args.fcst_w]
+    log_df['recon_w'] = [args.recon_w]
+    log_df['att_w'] = [args.att_w]
+    log_df['lr'] = [args.lrate]
+    log_df['sampling'] = [args.sampling]
+    log_df['data_type'] = [args.data_type]
+    log_df['seed'] = [args.seed]
+    log_df['batch_size'] = [args.batch_size]  
+    log_df['es_patience'] = [args.es_patience]  
+    return log_df
+
+def save_log(log_type='train',log_df=None):
+    if not os.path.exists(f'./experiment_log_{log_type}.csv'):
+        log_df.to_csv(f'./experiment_log_{log_type}.csv',index=False)
+    else:
+        log_df.to_csv(f'./experiment_log_{log_type}.csv',index=False,header=None,mode='a') 
+    return log_df
 
 if __name__ == "__main__":
-    train_duration = None
+    log_df = None
 
     if args.train:
-        t1 =  datetime.now()
-        print(f"Start training at {t1.strftime('%Y-%m-%d %H:%M:%S')}")
-
-        main_train()
-        train_duration = datetime.now() - t1
-        print(f"Total train time spent: {train_duration}")
+        main_train()      
 
     if args.test:
-        t1 =  datetime.now()
-        print(f"Start testing at {t1.strftime('%Y-%m-%d %H:%M:%S')}")
-
-        test_result_df = main_test()
-        test_duration = datetime.now() - t1
-        print(f"Total test time spent: {test_duration}")
-
-        test_result_df['test_duration'] = [test_duration]
-        test_result_df['train_duration'] = [train_duration]  
-        log_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        test_result_df['log_time'] = [log_time]  
-        test_result_df['batch_size'] = [args.batch_size]  
-        test_result_df['es_patience'] = [args.es_patience]      
-        
-        if not os.path.exists('./experiment_log.csv'):
-            test_result_df.to_csv('./experiment_log.csv',index=False)
-        else:
-            test_result_df.to_csv('./experiment_log.csv',index=False,header=None,mode='a') 
+        main_test()
 
     if args.predict:
-        t1 =  datetime.now()
-        print(f"Start predicting at {t1.strftime('%Y-%m-%d %H:%M:%S')}")
-
-        main_test(predict_only=True)
-        predict_duration =  datetime.now() - t1
-        print(f"Total predict time spent: {predict_duration}")
+        log_df = main_test(is_predict=True)
 
     if args.submit:
-        os.system(f"kaggle competitions submit -c amex-default-prediction -f {model_path}/submission.csv.zip -m '{model_specs_template}: {model_specs}'")
+        if log_df is not None:
+            submit_message = log_df.to_json(orient='records')
+        else:
+            submit_message = f'{model_specs_template}: {model_specs}'
+        os.system(f"""kaggle competitions submit -c amex-default-prediction -f {model_path}/submission.csv.zip -m '{submit_message}'""")
         print("\n")
         pass
 
