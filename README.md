@@ -1,3 +1,7 @@
+Will archive this repo as I created TimeKD_zq to break link with the source TimeKD repo. This is because I do not want to accidentally create PR to the source TimeKD repo.
+
+
+
 <div align="center">
   <h2><b> (ICDE'25) Efficient Multivariate Time Series Forecasting via Calibrated Language Models with Privileged Knowledge Distillation </b></h2>
 </div>
